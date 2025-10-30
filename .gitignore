@@ -1,0 +1,72 @@
+# Zig build artifacts
+zig-out/
+zig-cache/
+.zig-cache/
+
+# Build outputs
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.pdb
+
+# Generated shader files
+src/shader/*.glsl.zig
+src/shaders/*.glsl.zig
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Dependencies (if using package managers)
+node_modules/
+vendor/
+
+# Game specific
+saves/
+screenshots/
+replays/
+config.ini
+settings.json
+
+# Profiling and debugging
+*.prof
+*.trace
+callgrind.out.*
+perf.data*
+
+# Documentation build
+docs/
+doc/
+
+# Test artifacts
+test-results/
+coverage/
+
+# Local development
+.env
+.env.local
+local/
