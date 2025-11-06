@@ -13,7 +13,7 @@ const Mat4 = math.Mat4;
 const Vertex = extern struct { pos: [3]f32, col: [4]f32 };
 
 const World = struct {
-    blocks: @Vector(4096, bool) = @splat(false),
+    blocks: [4096]bool = [_]bool{false} ** 4096,
     vertices: [32768]Vertex = undefined,
     indices: [49152]u16 = undefined,
 
@@ -24,12 +24,17 @@ const World = struct {
     }
 
     fn collision(w: *const World, min: Vec3, max: Vec3) bool {
-        const min_v = @max(@Vector(3, i32){ 0, 0, 0 }, @as(@Vector(3, i32), @intFromFloat(@floor(@Vector(3, f32){ min.data[0], min.data[1], min.data[2] }))));
-        const max_v = @min(@Vector(3, i32){ 16, 16, 16 }, @as(@Vector(3, i32), @intFromFloat(@floor(@Vector(3, f32){ max.data[0], max.data[1], max.data[2] }))) + @Vector(3, i32){ 1, 1, 1 });
+        const min_x = @max(0, @as(i32, @intFromFloat(@floor(min.data[0]))));
+        const min_y = @max(0, @as(i32, @intFromFloat(@floor(min.data[1]))));
+        const min_z = @max(0, @as(i32, @intFromFloat(@floor(min.data[2]))));
 
-        for (@intCast(min_v[0])..@intCast(max_v[0])) |x| {
-            for (@intCast(min_v[1])..@intCast(max_v[1])) |y| {
-                for (@intCast(min_v[2])..@intCast(max_v[2])) |z| {
+        const max_x = @min(16, @as(i32, @intFromFloat(@floor(max.data[0]))) + 1);
+        const max_y = @min(16, @as(i32, @intFromFloat(@floor(max.data[1]))) + 1);
+        const max_z = @min(16, @as(i32, @intFromFloat(@floor(max.data[2]))) + 1);
+
+        for (@intCast(min_x)..@intCast(max_x)) |x| {
+            for (@intCast(min_y)..@intCast(max_y)) |y| {
+                for (@intCast(min_z)..@intCast(max_z)) |z| {
                     if (w.get(@intCast(x), @intCast(y), @intCast(z))) return true;
                 }
             }
