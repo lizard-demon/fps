@@ -38,32 +38,39 @@ const World = struct {
     }
 
     fn mesh(w: *World) u32 {
-        var vc: usize = 0;
-        var ic: usize = 0;
+        var vertices: usize = 0;
+        var indices: usize = 0;
+
         const dirs = [_]@Vector(3, i32){ .{ 1, 0, 0 }, .{ -1, 0, 0 }, .{ 0, 1, 0 }, .{ 0, -1, 0 }, .{ 0, 0, 1 }, .{ 0, 0, -1 } };
         const quads = [_][4]@Vector(3, f32){ .{ .{ 1, 0, 0 }, .{ 1, 0, 1 }, .{ 1, 1, 1 }, .{ 1, 1, 0 } }, .{ .{ 0, 0, 1 }, .{ 0, 0, 0 }, .{ 0, 1, 0 }, .{ 0, 1, 1 } }, .{ .{ 0, 1, 0 }, .{ 1, 1, 0 }, .{ 1, 1, 1 }, .{ 0, 1, 1 } }, .{ .{ 0, 0, 1 }, .{ 1, 0, 1 }, .{ 1, 0, 0 }, .{ 0, 0, 0 } }, .{ .{ 1, 0, 1 }, .{ 0, 0, 1 }, .{ 0, 1, 1 }, .{ 1, 1, 1 } }, .{ .{ 0, 0, 0 }, .{ 1, 0, 0 }, .{ 1, 1, 0 }, .{ 0, 1, 0 } } };
         const colors = [_][4]f32{ .{ 1.0, 1.0, 1.0, 1.0 }, .{ 1.0, 1.0, 1.0, 1.0 }, .{ 1.0, 1.0, 1.0, 1.0 }, .{ 1.0, 1.0, 1.0, 1.0 }, .{ 1.0, 1.0, 1.0, 1.0 }, .{ 1.0, 1.0, 1.0, 1.0 } };
+
         for (0..16) |x| for (0..16) |y| for (0..16) |z| {
             const idx = x + y * 16 + z * 256;
+
             if (!w.blocks[idx]) continue;
             const pos = @Vector(3, f32){ @floatFromInt(x), @floatFromInt(y), @floatFromInt(z) };
+
             for (dirs, quads, colors) |dir, quad, color| {
                 const neighbor = @Vector(3, i32){ @intCast(x), @intCast(y), @intCast(z) } + dir;
+
                 if (!w.get(neighbor[0], neighbor[1], neighbor[2])) {
-                    if (vc + 4 > w.vertices.len or ic + 6 > w.indices.len) break;
-                    const bi = @as(u16, @intCast(vc));
+                    if (vertices + 4 > w.vertices.len or indices + 6 > w.indices.len) break;
+                    const bi = @as(u16, @intCast(vertices));
+
                     for (quad) |v| {
-                        w.vertices[vc] = .{ .pos = .{ (pos + v)[0], (pos + v)[1], (pos + v)[2] }, .col = color };
-                        vc += 1;
+                        w.vertices[vertices] = .{ .pos = .{ (pos + v)[0], (pos + v)[1], (pos + v)[2] }, .col = color };
+                        vertices += 1;
                     }
+
                     for ([_]u16{ 0, 1, 2, 0, 2, 3 }) |i| {
-                        w.indices[ic] = bi + i;
-                        ic += 1;
+                        w.indices[indices] = bi + i;
+                        indices += 1;
                     }
                 }
             }
         };
-        return @intCast(ic);
+        return @intCast(indices);
     }
 };
 
@@ -82,18 +89,22 @@ const Player = struct {
         p.pitch = std.math.clamp(p.pitch + p.mouse_dy * 0.002, -1.5, 1.5);
         p.mouse_dx = 0;
         p.mouse_dy = 0;
-        const sy, const cy = .{ @sin(p.yaw), @cos(p.yaw) };
-        const fw: f32 = if (p.keys.w) 1.0 else if (p.keys.s) -1.0 else 0.0;
-        const st: f32 = if (p.keys.d) 1.0 else if (p.keys.a) -1.0 else 0.0;
-        p.vel = Vec3.new((sy * fw + cy * st) * 6.0, p.vel.data[1] - 15.0 * dt, (-cy * fw + sy * st) * 6.0);
+
+        const sin_yaw, const cos_yaw = .{ @sin(p.yaw), @cos(p.yaw) };
+        const forward: f32 = if (p.keys.w) 1.0 else if (p.keys.s) -1.0 else 0.0;
+        const strafe: f32 = if (p.keys.d) 1.0 else if (p.keys.a) -1.0 else 0.0;
+        p.vel = Vec3.new((sin_yaw * forward + cos_yaw * strafe) * 6.0, p.vel.data[1] - 15.0 * dt, (-cos_yaw * forward + sin_yaw * strafe) * 6.0);
 
         const old = p.pos;
         const hull = Vec3.new(0.4, 0.8, 0.4);
         const old_y_vel = p.vel.data[1];
+
         inline for (.{ 0, 2, 1 }) |axis| {
             p.pos.data[axis] += p.vel.data[axis] * dt;
+
             if (w.collision(Vec3.sub(p.pos, hull), Vec3.add(p.pos, hull))) {
                 p.pos.data[axis] = old.data[axis];
+
                 if (axis == 1) {
                     if (p.keys.space and old_y_vel <= 0) {
                         p.vel.data[1] = 8.0;
@@ -115,18 +126,18 @@ const Player = struct {
 const Render = struct {
     pipeline: sg.Pipeline = undefined,
     bindings: sg.Bindings = undefined,
-    vertex_count: u32 = undefined,
+    vertices: u32 = undefined,
     pass_action: sg.PassAction = undefined,
     proj: Mat4 = undefined,
 
-    fn init(r: *Render, w: *const World, ic: u32) void {
+    fn init(r: *Render, w: *const World, indices: u32) void {
         var layout = sg.VertexLayoutState{};
         layout.attrs[0].format = .FLOAT3;
         layout.attrs[1].format = .FLOAT4;
         r.pipeline = sg.makePipeline(.{ .shader = sg.makeShader(shader.cubeShaderDesc(sg.queryBackend())), .layout = layout, .index_type = .UINT16, .depth = .{ .compare = .LESS_EQUAL, .write_enabled = true }, .cull_mode = .BACK });
-        r.bindings = .{ .vertex_buffers = .{ sg.makeBuffer(.{ .data = sg.asRange(w.vertices[0 .. ic / 6 * 4]) }), .{}, .{}, .{}, .{}, .{}, .{}, .{} }, .index_buffer = sg.makeBuffer(.{ .usage = .{ .index_buffer = true }, .data = sg.asRange(w.indices[0..ic]) }) };
+        r.bindings = .{ .vertex_buffers = .{ sg.makeBuffer(.{ .data = sg.asRange(w.vertices[0 .. indices / 6 * 4]) }), .{}, .{}, .{}, .{}, .{}, .{}, .{} }, .index_buffer = sg.makeBuffer(.{ .usage = .{ .index_buffer = true }, .data = sg.asRange(w.indices[0..indices]) }) };
         r.pass_action = .{ .colors = .{ .{ .load_action = .CLEAR, .clear_value = .{ .r = 0.1, .g = 0.1, .b = 0.2, .a = 1.0 } }, .{}, .{}, .{}, .{}, .{}, .{}, .{} } };
-        r.vertex_count = ic;
+        r.vertices = indices;
         r.proj = math.perspective(90, 1.33, 0.1, 100);
     }
 
@@ -136,7 +147,7 @@ const Render = struct {
         sg.applyPipeline(r.pipeline);
         sg.applyBindings(r.bindings);
         sg.applyUniforms(0, sg.asRange(&mvp));
-        sg.draw(0, r.vertex_count, 1);
+        sg.draw(0, r.vertices, 1);
     }
 
     fn crosshair(r: *const Render) void {
@@ -152,7 +163,7 @@ const Render = struct {
     }
 };
 
-var g = struct {
+var Engine = struct {
     world: World = World{},
     player: Player = Player{},
     render: Render = Render{},
@@ -161,12 +172,14 @@ var g = struct {
 
 fn audio(buf: [*c]f32, frames: i32, channels: i32) callconv(.c) void {
     for (0..@intCast(frames)) |i| {
-        const sample: f32 = if (g.jump_time > 0) blk: {
-            const t = 1.0 - g.jump_time / 0.15;
-            g.jump_time -= 1.0 / 44100.0;
-            break :blk @sin((0.15 - g.jump_time) * (220.0 + 220.0 * t) * 2.0 * std.math.pi) * @exp(-t * 8.0) * 0.3;
+        const sample: f32 = if (Engine.jump_time > 0) blk: {
+            const t = 1.0 - Engine.jump_time / 0.15;
+            Engine.jump_time -= 1.0 / 44100.0;
+            break :blk @sin((0.15 - Engine.jump_time) * (220.0 + 220.0 * t) * 2.0 * std.math.pi) * @exp(-t * 8.0) * 0.3;
         } else 0;
-        for (0..@as(usize, @intCast(channels))) |ch| buf[i * @as(usize, @intCast(channels)) + ch] = sample;
+
+        for (0..@as(usize, @intCast(channels))) |ch|
+            buf[i * @as(usize, @intCast(channels)) + ch] = sample;
     }
 }
 
@@ -174,21 +187,24 @@ export fn init() void {
     sg.setup(.{ .environment = sokol.glue.environment() });
     saudio.setup(.{ .stream_cb = audio });
     simgui.setup(.{});
+
+    // Default World
     for (0..16) |x| for (0..16) |y| for (0..16) |z| {
         if (y == 0 or x == 0 or x == 15 or z == 0 or z == 15 or (x % 4 == 0 and z % 4 == 0 and y < 3)) {
             const idx = x + y * 16 + z * 256;
-            g.world.blocks[idx] = true;
+            Engine.world.blocks[idx] = true;
         }
     };
-    const ic = g.world.mesh();
-    g.render.init(&g.world, ic);
+
+    const ic = Engine.world.mesh();
+    Engine.render.init(&Engine.world, ic);
 }
 
 export fn frame() void {
-    g.player.update(&g.world, @floatCast(sapp.frameDuration()), &g.jump_time);
+    Engine.player.update(&Engine.world, @floatCast(sapp.frameDuration()), &Engine.jump_time);
     simgui.newFrame(.{ .width = sapp.width(), .height = sapp.height(), .delta_time = sapp.frameDuration() });
-    g.render.draw(g.player.view());
-    g.render.crosshair();
+    Engine.render.draw(Engine.player.view());
+    Engine.render.crosshair();
     simgui.render();
     sg.endPass();
     sg.commit();
@@ -205,26 +221,26 @@ export fn event(e: [*c]const sapp.Event) void {
     const key_state = e.*.type == .KEY_DOWN;
     switch (e.*.type) {
         .KEY_DOWN, .KEY_UP => switch (e.*.key_code) {
-            .W => g.player.keys.w = key_state,
-            .A => g.player.keys.a = key_state,
-            .S => g.player.keys.s = key_state,
-            .D => g.player.keys.d = key_state,
-            .SPACE => g.player.keys.space = key_state,
-            .ESCAPE => if (key_state and g.player.mouse_locked) {
-                g.player.mouse_locked = false;
+            .W => Engine.player.keys.w = key_state,
+            .A => Engine.player.keys.a = key_state,
+            .S => Engine.player.keys.s = key_state,
+            .D => Engine.player.keys.d = key_state,
+            .SPACE => Engine.player.keys.space = key_state,
+            .ESCAPE => if (key_state and Engine.player.mouse_locked) {
+                Engine.player.mouse_locked = false;
                 sapp.showMouse(true);
                 sapp.lockMouse(false);
             },
             else => {},
         },
-        .MOUSE_DOWN => if (e.*.mouse_button == .LEFT and !g.player.mouse_locked) {
-            g.player.mouse_locked = true;
+        .MOUSE_DOWN => if (e.*.mouse_button == .LEFT and !Engine.player.mouse_locked) {
+            Engine.player.mouse_locked = true;
             sapp.showMouse(false);
             sapp.lockMouse(true);
         },
-        .MOUSE_MOVE => if (g.player.mouse_locked) {
-            g.player.mouse_dx += e.*.mouse_dx;
-            g.player.mouse_dy += e.*.mouse_dy;
+        .MOUSE_MOVE => if (Engine.player.mouse_locked) {
+            Engine.player.mouse_dx += e.*.mouse_dx;
+            Engine.player.mouse_dy += e.*.mouse_dy;
         },
         else => {},
     }
