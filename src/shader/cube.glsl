@@ -27,8 +27,8 @@ void main() {
     float outline = min(min(grid.x, 1.0 - grid.x), min(grid.y, 1.0 - grid.y));
     float edge = smoothstep(0.05, 0.06, outline);
     
-    // Simple lighting
-    float light = dot(n, normalize(vec3(0.6, 1.0, 0.4))) * 0.4 + 0.6;
+    // Simple lighting from above
+    float light = dot(n, vec3(0.0, -1.0, 0.0)) * 0.4 + 0.6;
     
     frag_color = vec4(color.rgb * edge * light, color.a);
 }
